@@ -64,6 +64,25 @@ class MealieClient:
             timeout=httpx.Timeout(30, read=180),  # AI imports can be slow
         )
 
+    def _request(self, method: str, url: str, **kwargs) -> httpx.Response:
+        """Network failures become a MealieError naming the URL, instead of an opaque 500."""
+        try:
+            return self.http.request(method, url, **kwargs)
+        except httpx.TimeoutException as e:
+            raise MealieError(f"Mealie ({self.base_url}) non ha risposto in tempo") from e
+        except httpx.HTTPError as e:
+            raise MealieError(
+                f"Non riesco a contattare Mealie su {self.base_url} ({type(e).__name__}): controlla MEALIE_URL"
+            ) from e
+
+    def check_connection(self) -> str | None:
+        """Return an error message if Mealie is unreachable or the token is wrong, None if all good."""
+        try:
+            self._check(self._request("GET", "/api/users/self", timeout=10))
+        except MealieError as e:
+            return str(e)
+        return None
+
     def _check(self, r: httpx.Response) -> httpx.Response:
         if r.is_success:
             return r
@@ -80,8 +99,8 @@ class MealieClient:
     def recipe_url(self, slug: str) -> str:
         if self._group_slug is None:
             try:
-                self._group_slug = self._check(self.http.get("/api/users/self")).json().get("groupSlug", "")
-            except (MealieError, httpx.HTTPError):
+                self._group_slug = self._check(self._request("GET", "/api/users/self")).json().get("groupSlug", "")
+            except (MealieError, ValueError):
                 self._group_slug = ""
         if self._group_slug:
             return f"{self.public_url}/g/{self._group_slug}/r/{slug}"
@@ -112,7 +131,8 @@ class MealieClient:
         if self.tag:
             ld["keywords"] = self.tag
 
-        r = self.http.post(
+        r = self._request(
+            "POST",
             "/api/recipes/create/html-or-json",
             json={"data": ld_json_for_html(ld), "url": source_url, "includeTags": bool(self.tag)},
         )
@@ -127,12 +147,12 @@ class MealieClient:
 
     def create_with_ai(self, caption: str, source_url: str) -> str:
         """Let Mealie's configured AI provider parse the raw caption."""
-        r = self.http.post("/api/recipes/create/ai", data={"content": safe_text(caption)})
+        r = self._request("POST", "/api/recipes/create/ai", data={"content": safe_text(caption)})
         if r.status_code == 404:
             raise MealieError("Questa versione di Mealie non supporta l'import con AI.")
         slug = self._check(r).json()
         try:
-            self._check(self.http.patch(f"/api/recipes/{slug}", json={"orgURL": source_url}))
+            self._check(self._request("PATCH", f"/api/recipes/{slug}", json={"orgURL": source_url}))
         except MealieError as e:
             log.warning("Could not set source URL on %s: %s", slug, e)
         return slug

@@ -6,12 +6,14 @@ import os
 import secrets
 import threading
 from collections import OrderedDict
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
 from .instagram import InstagramError, download_image, fetch_post, find_shortcode
@@ -46,7 +48,29 @@ if not APP_TOKEN:
     log.warning("APP_TOKEN is not set: anyone who can reach this server can create recipes in Mealie.")
 
 mealie = MealieClient(MEALIE_URL, MEALIE_API_TOKEN, MEALIE_PUBLIC_URL, MEALIE_TAG)
-app = FastAPI(title="Insta → Mealie", docs_url=None, redoc_url=None, openapi_url=None)
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    # Surface a wrong MEALIE_URL / token in the logs right away, not at the first import.
+    if problem := await run_in_threadpool(mealie.check_connection):
+        log.error("Mealie check failed: %s", problem)
+    else:
+        log.info("Connected to Mealie at %s", MEALIE_URL)
+    yield
+
+
+app = FastAPI(title="Insta → Mealie", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
+
+
+@app.exception_handler(Exception)
+async def unexpected_error(request: Request, exc: Exception):
+    log.exception("Unexpected error on %s", request.url.path)
+    return JSONResponse(
+        {"detail": f"Errore interno del server ({type(exc).__name__}): controlla i log del container"},
+        status_code=500,
+        headers=SECURITY_HEADERS,  # this response bypasses the "harden" middleware
+    )
 
 
 @app.middleware("http")
