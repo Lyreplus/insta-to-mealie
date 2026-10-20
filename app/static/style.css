@@ -1,0 +1,160 @@
+:root {
+  --bg: #FBF7F2;
+  --card: #FFFFFF;
+  --text: #2B211C;
+  --muted: #7A6A60;
+  --border: #E8DED4;
+  --accent: #D9542B;
+  --accent-text: #FFFFFF;
+  --accent-soft: #FBE6DC;
+  --error: #B42318;
+  --error-soft: #FDECEA;
+  --ok: #2E7D4F;
+  --radius: 14px;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17120F;
+    --card: #221B17;
+    --text: #F3EAE3;
+    --muted: #B3A398;
+    --border: #3A2F28;
+    --accent: #F0764C;
+    --accent-text: #1A0F0A;
+    --accent-soft: #3B241A;
+    --error: #FF8A80;
+    --error-soft: #3A1D1A;
+    --ok: #6FCF97;
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: calc(12px + env(safe-area-inset-top)) 16px 12px;
+}
+.topbar h1 { font-size: 1.15rem; margin: 0; }
+
+main {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 0 16px calc(32px + env(safe-area-inset-bottom));
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.card.center { text-align: center; }
+.card.error { background: var(--error-soft); border-color: transparent; color: var(--error); }
+.card.error details { color: var(--text); }
+#error-text { margin: 0; }
+
+label {
+  display: block;
+  font-weight: 600;
+  font-size: .9rem;
+  margin: 14px 0 6px;
+}
+label:first-child { margin-top: 0; }
+.count { font-weight: 400; color: var(--muted); }
+
+input, textarea {
+  width: 100%;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+textarea { resize: vertical; line-height: 1.5; }
+input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+.row { display: flex; gap: 8px; }
+.row input { flex: 1; min-width: 0; }
+
+.grid3 { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 8px; }
+.grid3 label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 0 18px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.btn.primary { background: var(--accent); color: var(--accent-text); width: 100%; margin-top: 14px; }
+.btn.ghost { background: var(--accent-soft); color: var(--accent); }
+.btn.text { background: none; color: var(--muted); width: 100%; margin-top: 6px; }
+.btn:disabled { opacity: .6; cursor: progress; }
+
+.hint { color: var(--muted); font-size: .85rem; margin: 10px 0 0; }
+
+.source { display: flex; gap: 12px; align-items: center; margin-bottom: 4px; }
+.source img {
+  width: 72px; height: 72px; object-fit: cover;
+  border-radius: 10px; background: var(--border); flex: none;
+}
+.source img:not([src]) { display: none; }
+.source a { color: var(--accent); font-weight: 600; word-break: break-all; }
+.source .hint { margin-top: 2px; }
+
+details { margin-top: 14px; }
+summary { cursor: pointer; color: var(--muted); font-size: .9rem; }
+details textarea, details .btn { margin-top: 10px; }
+pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font: .85rem/1.5 ui-monospace, monospace;
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 10px;
+  max-height: 40vh;
+  overflow: auto;
+}
+
+.actions { margin-top: 8px; }
+.actions .ghost { width: 100%; margin-top: 8px; }
+
+.spinner {
+  width: 36px; height: 36px; margin: 8px auto;
+  border: 4px solid var(--accent-soft);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.check {
+  width: 56px; height: 56px; margin: 4px auto 8px;
+  border-radius: 50%;
+  background: var(--ok); color: var(--card);
+  font-size: 30px; line-height: 56px;
+}
+#done h2 { margin: 4px 0; }
+#done-name { color: var(--muted); margin: 0; }

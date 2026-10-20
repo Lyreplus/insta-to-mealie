@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Insta → Mealie</title>
+  <meta name="theme-color" content="#D9542B">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/static/icon-192.png">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <img src="/static/icon.svg" alt="" width="28" height="28">
+    <h1>Insta → Mealie</h1>
+  </header>
+
+  <main>
+    <!-- Access code (only when APP_TOKEN is set on the server) -->
+    <section id="auth" class="card" hidden>
+      <label for="auth-token">Codice di accesso</label>
+      <input id="auth-token" type="password" autocomplete="current-password">
+      <button id="auth-save" class="btn primary">Salva</button>
+    </section>
+
+    <section id="step-link" class="card">
+      <label for="link">Link del post Instagram</label>
+      <div class="row">
+        <input id="link" type="url" inputmode="url" placeholder="https://www.instagram.com/p/…" autocomplete="off">
+        <button id="paste" class="btn ghost" type="button" hidden>Incolla</button>
+      </div>
+      <button id="fetch" class="btn primary">Leggi ricetta</button>
+      <p class="hint">Dall'app Instagram: <b>Condividi → Insta → Mealie</b>, oppure copia il link e incollalo qui.</p>
+    </section>
+
+    <section id="loading" class="card center" hidden>
+      <div class="spinner"></div>
+      <p id="loading-text">Leggo il post…</p>
+    </section>
+
+    <section id="error" class="card error" hidden>
+      <p id="error-text"></p>
+      <details id="manual">
+        <summary>Incolla la descrizione a mano</summary>
+        <textarea id="manual-caption" rows="8" placeholder="Testo della descrizione del post"></textarea>
+        <button id="manual-parse" class="btn ghost">Analizza testo</button>
+      </details>
+    </section>
+
+    <form id="preview" class="card" hidden>
+      <div class="source">
+        <img id="cover" alt="">
+        <div>
+          <a id="source-link" target="_blank" rel="noopener"></a>
+          <p class="hint">Controlla e correggi, poi importa.</p>
+        </div>
+      </div>
+
+      <label for="f-name">Titolo</label>
+      <input id="f-name" required>
+
+      <label for="f-description">Descrizione</label>
+      <textarea id="f-description" rows="3"></textarea>
+
+      <div class="grid3">
+        <div>
+          <label for="f-yield">Porzioni</label>
+          <input id="f-yield" placeholder="4 persone">
+        </div>
+        <div>
+          <label for="f-prep">Prep. (min)</label>
+          <input id="f-prep" type="number" min="0" inputmode="numeric">
+        </div>
+        <div>
+          <label for="f-cook">Cottura (min)</label>
+          <input id="f-cook" type="number" min="0" inputmode="numeric">
+        </div>
+      </div>
+
+      <label for="f-ingredients">Ingredienti <span class="count" id="c-ingredients"></span></label>
+      <textarea id="f-ingredients" rows="8"></textarea>
+
+      <label for="f-instructions">Procedimento <span class="count" id="c-instructions"></span></label>
+      <textarea id="f-instructions" rows="8"></textarea>
+
+      <label for="f-notes">Note</label>
+      <textarea id="f-notes" rows="2"></textarea>
+
+      <p class="hint">Ogni riga è un ingrediente o un passaggio (le righe vuote vengono ignorate). Le righe che finiscono con «:» (es. «Per la crema:») diventano titoli di sezione.</p>
+
+      <details>
+        <summary>Descrizione originale</summary>
+        <pre id="raw-caption"></pre>
+        <button id="reparse" class="btn ghost" type="button">Rianalizza dall'originale</button>
+      </details>
+
+      <div class="actions">
+        <button id="import" class="btn primary" type="submit">Importa su Mealie</button>
+        <button id="import-ai" class="btn ghost" type="button" hidden>Importa con l'AI di Mealie</button>
+        <button id="cancel" class="btn text" type="button">Annulla</button>
+      </div>
+    </form>
+
+    <section id="done" class="card center" hidden>
+      <div class="check">✓</div>
+      <h2>Ricetta importata!</h2>
+      <p id="done-name"></p>
+      <a id="done-link" class="btn primary" target="_blank" rel="noopener">Apri in Mealie</a>
+      <button id="again" class="btn text">Importa un'altra ricetta</button>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

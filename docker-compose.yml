@@ -1,0 +1,18 @@
+services:
+  insta-mealie:
+    build: .
+    container_name: insta-mealie
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "8099:8099"
+    # Optional: Instagram cookies (Netscape format) if Instagram starts blocking anonymous requests.
+    # volumes:
+    #   - ./instagram-cookies.txt:/srv/instagram-cookies.txt:ro
+    # If Mealie runs in another compose project, join its network and use MEALIE_URL=http://mealie:9000
+    # networks:
+    #   - mealie_default
+
+# networks:
+#   mealie_default:
+#     external: true
