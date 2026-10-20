@@ -197,7 +197,7 @@ def import_recipe(req: ImportRequest):
         if req.use_ai:
             if not MEALIE_AI:
                 raise HTTPException(400, "Import con AI non abilitato (MEALIE_AI=false)")
-            slug = mealie.create_with_ai(req.caption, source_url)
+            slug = mealie.create_with_ai(req.caption, source_url, req.author)
         else:
             slug = mealie.create_recipe(req.recipe.model_dump(), source_url, req.author)
     except MealieError as e:

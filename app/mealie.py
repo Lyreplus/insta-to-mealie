@@ -52,6 +52,14 @@ def _iso_minutes(minutes: int | None) -> str | None:
     return f"PT{minutes}M" if minutes else None
 
 
+def with_source_link(description: str, source_url: str, author: str = "") -> str:
+    """Append the Instagram post link to the description (once)."""
+    if not source_url or source_url in description:
+        return description
+    by = f" di @{author}" if author else ""
+    return f"{description}\n\nRicetta originale{by}: {source_url}".strip()
+
+
 class MealieClient:
     def __init__(self, base_url: str, token: str, public_url: str = "", tag: str = ""):
         self.base_url = base_url.rstrip("/")
@@ -110,7 +118,7 @@ class MealieClient:
         """Create through Mealie's own schema.org importer, then restore section titles."""
         ingredients, ing_titles = _split_sections(recipe.get("ingredients", []))
         steps, step_titles = _split_sections(recipe.get("instructions", []))
-        description = safe_text(recipe.get("description"))
+        description = with_source_link(safe_text(recipe.get("description")), source_url, author)
 
         ld = {
             "@context": "https://schema.org",
@@ -145,15 +153,18 @@ class MealieClient:
             self._finalize(slug, ing_titles, step_titles, notes, description)
         return slug
 
-    def create_with_ai(self, caption: str, source_url: str) -> str:
-        """Let Mealie's configured AI provider parse the raw caption."""
+    def create_with_ai(self, caption: str, source_url: str, author: str = "") -> str:
+        """Let Mealie's configured AI provider parse the raw caption, then add the source link."""
         r = self._request("POST", "/api/recipes/create/ai", data={"content": safe_text(caption)})
         if r.status_code == 404:
             raise MealieError("Questa versione di Mealie non supporta l'import con AI.")
         slug = self._check(r).json()
         try:
-            self._check(self._request("PATCH", f"/api/recipes/{slug}", json={"orgURL": source_url}))
-        except MealieError as e:
+            full = self._check(self._request("GET", f"/api/recipes/{slug}")).json()
+            full["orgURL"] = source_url
+            full["description"] = with_source_link(full.get("description") or "", source_url, author)
+            self._check(self._request("PUT", f"/api/recipes/{slug}", json=full))
+        except (MealieError, ValueError) as e:
             log.warning("Could not set source URL on %s: %s", slug, e)
         return slug
 
