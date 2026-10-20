@@ -1,11 +1,20 @@
 services:
   insta-mealie:
     build: .
+    image: insta-mealie  # fixed name, e.g. for "trivy image insta-mealie"
     container_name: insta-mealie
     restart: unless-stopped
     env_file: .env
+    # Docker publishes on every interface and bypasses host firewalls (ufw).
+    # Behind a reverse proxy on the same host, use "127.0.0.1:8099:8099" instead.
     ports:
       - "8099:8099"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     # Optional: Instagram cookies (Netscape format) if Instagram starts blocking anonymous requests.
     # volumes:
     #   - ./instagram-cookies.txt:/srv/instagram-cookies.txt:ro

@@ -1,6 +1,7 @@
-fastapi==0.115.12
-uvicorn==0.34.2
+fastapi==0.142.2
+# Explicit pin: FastAPI only asks for starlette>=0.46, older releases have known CVEs (e.g. CVE-2025-62727).
+starlette==1.7.0
+uvicorn==0.54.0
 httpx==0.28.1
-python-multipart==0.0.20
-# Instagram changes often: keep yt-dlp recent (rebuild the image to update it).
-yt-dlp>=2026.8.19
+# Instagram changes often: when imports stop working, bump this to the latest yt-dlp and rebuild.
+yt-dlp==2026.8.19

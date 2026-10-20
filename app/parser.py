@@ -63,6 +63,7 @@ JUNK_RE = re.compile(
 )
 STEP_NUMBER_RE = re.compile(r"^(?:(?:step|passo|fase|punto)\s*)?\d{1,2}\s*(?:[.)°:\-–]|️?⃣)\s*", re.I)
 KEYCAP_RE = re.compile(r"^\s*(?:\d+️?⃣|🔟)\s*")
+MAX_CAPTION_LENGTH = 10_000
 BULLET_CHARS = set("-–—•·▪▫●◦‣*~>|✓✔+")
 
 
@@ -86,8 +87,18 @@ def _is_deco(ch: str) -> bool:
 def clean_line(line: str) -> str:
     """Strip bullets/emoji at both ends and hashtags, keep the text."""
     line = KEYCAP_RE.sub("", line)
-    line = re.sub(r"(?:\s*#[\wÀ-ɏ]+)+\s*$", "", line)  # trailing hashtags
-    line = re.sub(r"#([\wÀ-ɏ]+)", r"\1", line)  # inline hashtags -> plain words
+    # Trailing hashtags, dropped token by token: a regex like (\s*#\w+)+$ backtracks quadratically.
+    words = line.split()
+    while words:
+        head, hash_, _ = words[-1].partition("#")
+        if not hash_:
+            break
+        if head:  # "Buonissima#pasta"
+            words[-1] = head
+            break
+        words.pop()
+    line = " ".join(words)
+    line = re.sub(r"#(\w+)", r"\1", line)  # inline hashtags -> plain words
     i = 0
     while i < len(line) and (line[i].isspace() or _is_deco(line[i]) or line[i] in ".:"):
         i += 1
@@ -166,11 +177,14 @@ def _make_title(line: str) -> str:
 
 
 def parse_caption(caption: str, author: str = "") -> ParsedRecipe:
+    # Instagram captions are at most 2200 characters: anything longer is not a real caption.
+    caption = caption[:MAX_CAPTION_LENGTH]
     # Drop zero-width spaces, turn Unicode line separators into newlines.
     text = caption.replace("\r\n", "\n").replace(chr(0x200B), "").replace(chr(0x2028), "\n")
-    # Single-paragraph captions: put each header on its own line.
+    # Single-paragraph captions: put each header on its own line (clean_line strips the
+    # whitespace left behind; a leading \s* here would backtrack quadratically on long blanks).
     if text.count("\n") < 3:
-        text = re.sub(rf"\s*\b({ALL_HEADERS})\b\s*:", r"\n\1:", text, flags=re.I)
+        text = re.sub(rf"\b({ALL_HEADERS})\b\s*:", r"\n\1:", text, flags=re.I)
 
     r = ParsedRecipe()
     intro: list[str] = []

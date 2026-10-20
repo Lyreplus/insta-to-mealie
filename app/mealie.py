@@ -2,14 +2,31 @@
 
 import json
 import logging
+import re
 
 import httpx
 
 log = logging.getLogger(__name__)
 
+HTML_TAG_RE = re.compile(r"<[^<>]*>")
+MD_IMAGE_RE = re.compile(r"!\[[^\]]*\]\([^)]*\)")
+
 
 class MealieError(Exception):
     pass
+
+
+def safe_text(text: str) -> str:
+    """Captions are written by strangers and Mealie renders notes and steps as Markdown:
+    drop raw HTML and Markdown images (e.g. a tracking pixel loaded whenever the recipe is opened)."""
+    return MD_IMAGE_RE.sub("", HTML_TAG_RE.sub("", text or "")).strip()
+
+
+def ld_json_for_html(ld: dict) -> str:
+    """Mealie embeds this JSON verbatim inside <script type="application/ld+json">: escape the
+    characters that could close the tag ("</script>") or start markup. Still valid JSON."""
+    data = json.dumps(ld, ensure_ascii=False)
+    return data.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
 
 
 def is_section_title(line: str) -> bool:
@@ -21,7 +38,7 @@ def _split_sections(lines: list[str]) -> tuple[list[str], dict[int, str]]:
     """Return the plain lines and {index_of_first_line_in_section: title}."""
     items: list[str] = []
     titles: dict[int, str] = {}
-    for line in (line.strip() for line in lines):
+    for line in (safe_text(line) for line in lines):
         if not line:
             continue
         if is_section_title(line):
@@ -74,20 +91,21 @@ class MealieClient:
         """Create through Mealie's own schema.org importer, then restore section titles."""
         ingredients, ing_titles = _split_sections(recipe.get("ingredients", []))
         steps, step_titles = _split_sections(recipe.get("instructions", []))
+        description = safe_text(recipe.get("description"))
 
         ld = {
             "@context": "https://schema.org",
             "@type": "Recipe",
-            "name": recipe.get("name") or "Ricetta da Instagram",
-            "description": recipe.get("description") or "",
+            "name": safe_text(recipe.get("name")) or "Ricetta da Instagram",
+            "description": description,
             "url": source_url,
             "recipeIngredient": ingredients,
             "recipeInstructions": [{"@type": "HowToStep", "text": s} for s in steps],
         }
         if author:
             ld["author"] = {"@type": "Person", "name": f"@{author}"}
-        if recipe.get("recipe_yield"):
-            ld["recipeYield"] = recipe["recipe_yield"]
+        if recipe_yield := safe_text(recipe.get("recipe_yield")):
+            ld["recipeYield"] = recipe_yield
         for key, ld_key in (("prep_time", "prepTime"), ("cook_time", "cookTime"), ("total_time", "totalTime")):
             if iso := _iso_minutes(recipe.get(key)):
                 ld[ld_key] = iso
@@ -96,21 +114,20 @@ class MealieClient:
 
         r = self.http.post(
             "/api/recipes/create/html-or-json",
-            json={"data": json.dumps(ld, ensure_ascii=False), "url": source_url, "includeTags": bool(self.tag)},
+            json={"data": ld_json_for_html(ld), "url": source_url, "includeTags": bool(self.tag)},
         )
         if r.status_code == 404:
             raise MealieError("Questa versione di Mealie è troppo vecchia (manca /create/html-or-json): aggiornala.")
         slug = self._check(r).json()
 
-        notes = [n.strip() for n in recipe.get("notes", []) if n.strip()]
-        description = recipe.get("description") or ""
+        notes = [n for n in map(safe_text, recipe.get("notes", [])) if n]
         if ing_titles or step_titles or notes or "\n" in description:
             self._finalize(slug, ing_titles, step_titles, notes, description)
         return slug
 
     def create_with_ai(self, caption: str, source_url: str) -> str:
         """Let Mealie's configured AI provider parse the raw caption."""
-        r = self.http.post("/api/recipes/create/ai", data={"content": caption})
+        r = self.http.post("/api/recipes/create/ai", data={"content": safe_text(caption)})
         if r.status_code == 404:
             raise MealieError("Questa versione di Mealie non supporta l'import con AI.")
         slug = self._check(r).json()

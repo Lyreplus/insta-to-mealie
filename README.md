@@ -61,11 +61,23 @@ Se il server è raggiungibile da internet, imposta `APP_TOKEN`: l'app lo chiede 
 
 Instagram limita a volte le richieste anonime. Le soluzioni, in ordine:
 
-1. Aggiorna yt-dlp ricostruendo l'immagine: `docker compose build --pull --no-cache && docker compose up -d`.
+1. Aggiorna yt-dlp: metti l'ultima versione in `requirements.txt` e ricostruisci l'immagine con
+   `docker compose build --pull && docker compose up -d`.
 2. Esporta i cookie di Instagram da un browser in cui hai fatto login (formato Netscape, ad esempio con
    l'estensione «Get cookies.txt LOCALLY»; meglio un account secondario), salvali come `instagram-cookies.txt`,
    scommenta il volume in `docker-compose.yml` e imposta `INSTAGRAM_COOKIES_FILE=/srv/instagram-cookies.txt`.
 3. Usa «Incolla la descrizione a mano» nell'app.
+
+## Sicurezza
+
+- Imposta sempre `APP_TOKEN` con un valore lungo e casuale (`openssl rand -hex 24`). Senza, chiunque raggiunga
+  la porta 8099 può creare ricette nel tuo Mealie.
+- Genera il token API da un utente Mealie dedicato e **non admin**: il server non ha bisogno di altri permessi.
+- Dietro un reverse proxy, pubblica la porta solo in locale (`127.0.0.1:8099:8099`) e imposta un limite alla
+  dimensione delle richieste anche sul proxy (ad esempio `client_max_body_size 256k` in Nginx).
+- Il file dei cookie di Instagram equivale a una sessione aperta: usa un account secondario e non metterlo in git.
+- Il testo dei post è scritto da sconosciuti: prima di inviarlo a Mealie il server rimuove HTML e immagini markdown.
+- Aggiorna periodicamente le dipendenze e ricontrollale con `uvx pip-audit -r requirements.txt`.
 
 ## Sviluppo
 

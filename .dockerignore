@@ -1,5 +1,6 @@
 .venv
 .env
+instagram-cookies.txt
 .git
 .pytest_cache
 **/__pycache__

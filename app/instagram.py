@@ -3,7 +3,10 @@
 import html
 import logging
 import re
+import shutil
+import tempfile
 from dataclasses import dataclass
+from pathlib import Path
 
 import httpx
 from yt_dlp import YoutubeDL
@@ -83,12 +86,16 @@ def _fetch_with_ytdlp(shortcode: str, cookies_file: str | None) -> InstagramPost
         "ignore_no_formats_error": True,
         "extract_flat": "in_playlist",
         "socket_timeout": 20,
+        "cachedir": False,  # the container filesystem is read-only
     }
-    if cookies_file:
-        opts["cookiefile"] = cookies_file
-
-    with YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(canonical_url(shortcode), download=False)
+    with tempfile.TemporaryDirectory() as tmp:
+        if cookies_file:
+            # yt-dlp writes the cookie jar back on exit: give it a private copy, so the
+            # mounted file can stay read-only and concurrent requests don't clash.
+            # copyfile, not copy: the copy must be writable even if the original is read-only.
+            opts["cookiefile"] = str(shutil.copyfile(cookies_file, Path(tmp) / "cookies.txt"))
+        with YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(canonical_url(shortcode), download=False)
 
     entries = [e for e in (info.get("entries") or []) if e]
     first = entries[0] if entries else {}
@@ -124,9 +131,10 @@ def _fetch_with_opengraph(shortcode: str) -> InstagramPost:
     r.raise_for_status()
     page = r.text
 
-    # Format: '123 likes, 4 comments - user on March 1, 2024: "caption text". '
+    # Format: '123 likes, 4 comments - user on March 1, 2024: "caption text". ' (localized:
+    # "Mi piace", "su", ... so only the punctuation is relied upon).
     desc = _meta(page, "og:description") or _meta(page, "description")
-    m = re.search(r'^.*? - ([\w.]+) on [^:]+: "(.*)"\.?\s*$', desc, re.S)
+    m = re.search(r'^[^"]*? - ([\w.]+) [^":]+: "(.*)"\.?\s*$', desc, re.S)
     caption, author = (m.group(2), m.group(1)) if m else (desc, "")
 
     return InstagramPost(
@@ -139,19 +147,35 @@ def _fetch_with_opengraph(shortcode: str) -> InstagramPost:
 
 
 IMAGE_HOSTS = (".cdninstagram.com", ".fbcdn.net")
+IMAGE_TYPES = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
+MAX_IMAGE_BYTES = 8 * 1024 * 1024
 
 
 def download_image(url: str) -> tuple[bytes, str] | None:
-    """Download the cover image from Instagram's CDN; returns (bytes, extension)."""
-    host = httpx.URL(url).host if url else ""
-    if not url.startswith("https://") or not host.endswith(IMAGE_HOSTS):
+    """Download the cover image from Instagram's CDN; returns (bytes, extension).
+
+    The URL can come from the client, so: https only, Instagram CDN hosts only, no redirects
+    (they could leave the allowlist), image content types only, bounded size.
+    """
+    try:
+        parsed = httpx.URL(url)
+    except (httpx.InvalidURL, TypeError):
+        return None
+    if parsed.scheme != "https" or not parsed.host.endswith(IMAGE_HOSTS):
         return None
     try:
-        r = httpx.get(url, headers={"User-Agent": BROWSER_UA}, follow_redirects=True, timeout=20)
-        r.raise_for_status()
+        with httpx.stream("GET", parsed, headers={"User-Agent": BROWSER_UA}, follow_redirects=False, timeout=20) as r:
+            r.raise_for_status()
+            ext = IMAGE_TYPES.get(r.headers.get("content-type", "").split(";")[0].strip())
+            if not ext:
+                return None
+            data = bytearray()
+            for chunk in r.iter_bytes():
+                data += chunk
+                if len(data) > MAX_IMAGE_BYTES:
+                    log.warning("Image too large, skipped: %s", parsed.host)
+                    return None
     except httpx.HTTPError as e:
         log.warning("Image download failed: %s", e)
         return None
-    ctype = r.headers.get("content-type", "image/jpeg")
-    ext = {"image/png": "png", "image/webp": "webp"}.get(ctype.split(";")[0], "jpg")
-    return r.content, ext
+    return bytes(data), ext
